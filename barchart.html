@@ -7,16 +7,23 @@
 
     <style type="text/css">
 
-      .yAxis text {
-          font-family: Arial;
-          font-size: 10pt;
-          /*font-weight: bold;*/
+      text
+      {
+        font-family: Arial;
+        font-size: 10pt;        
       }
 
-      .yAxis path, .yAxis line {
-          fill: none;
-          stroke: none;
-      }      
+      #Test
+      {
+          position: absolute;
+          visibility: hidden;
+          height: auto;
+          width: auto;
+          white-space: nowrap;
+
+          font-family: Arial;
+          font-size: 10pt;
+      }
 
     </style>
 
@@ -104,10 +111,33 @@
       function deleteVisualization(useNewData)
       {        
         var height = visualizedData.length*barHeight+(visualizedData.length+1)*barSpacing, endX = height+barSpacing+margin.bottom;
+
+        d3.selectAll("text")
+          .transition()
+          .delay(function (d, i) { 
+
+            if( i<(visualizedData.length/2) )
+              return i*bTime*100 
+            else
+              return (visualizedData.length-i)*bTime*100
+          })                         
+          .attr("y", function(d,i) { 
+
+            if( i<(visualizedData.length/2) )
+              return startX;
+            else
+              return endX+barHeight;
+          });         
             
         d3.selectAll("rect")
           .transition()
-          .delay(function (d, i) { return Math.abs(visualizedData.length/2-i)*bTime*100 })                         
+          .delay(function (d, i) { 
+
+            if( i<(visualizedData.length/2) )
+              return i*bTime*100 
+            else
+              return (visualizedData.length-i)*bTime*100
+          })
           .attr("y", function(d,i) { 
 
             if( i<(visualizedData.length/2) )
@@ -164,35 +194,49 @@
       {
 
         var height = data.length*barHeight+(data.length+1)*barSpacing, width = getDocWidth()-margin.left-margin.right-25,    
-            max = d3.max(data, function(d) { return d[encodeBy]; } ), min = 0, endX=height+barSpacing+margin.bottom;
+            max = d3.max(data, function(d) { return d[encodeBy] } ), min = 0, endX=height+barSpacing+margin.bottom;
 
         xScale = d3.scale.linear().range([0, width]);
         yScale = d3.scale.ordinal().rangeRoundBands([0, height]);
 
         xScale.domain([min, max]);
-        yScale.domain(data.map(function(d) { return d.name; }));            
+        yScale.domain(data.map(function(d) { return d.name }));            
      
         var svg = d3.select("#svgArea")
           .append("svg")
           .attr("width", width+margin.left+margin.right)
           .attr("height", height+margin.top+margin.bottom);
+
+        var gTexts = svg.append("g")
+          .attr("transform", "translate("+0+","+margin.top+")");
+
+        var texts = gTexts
+          .selectAll("text")
+          .data(data)
+          .enter()
+          .append("text")
+          .text( function(d) { return d.name })
+          .attr("x", function(d) { return margin.left-getWidth(d.name)-5 })
+          .attr("y", function(d,i) { 
+
+            if( i<(data.length/2) )
+              return startX;
+            else
+              return endX+barHeight;
+          })
+          .transition()
+          .delay(function (d, i) { return Math.abs(data.length/2-i)*bTime*100 })                         
+          .attr("y", function(d) { return yScale(d.name)+barHeight });          
      
-        var g = svg.append("g")
-          .attr("transform", "translate("+margin.left+","+margin.top+")");        
-
-        var yAxis = d3.svg.axis().scale(yScale)
-          .orient("left");        
-
-        var yAxis = g.append("g")        
-          .attr("class", "yAxis")
-          .call(yAxis);                    
+        var gRects = svg.append("g")
+          .attr("transform", "translate("+margin.left+","+margin.top+")");
  
-        var bars = g
+        var bars = gRects
           .selectAll("rect")
           .data(data)
           .enter()
           .append("rect")
-          .attr("width", function(d) { return xScale(d[encodeBy]); })
+          .attr("width", function(d) { return xScale(d[encodeBy]) })
           .attr("height", barHeight)
           .attr("fill", function(d) { return barColors[d.continent] } )
           .attr("x", xScale(min))
@@ -205,7 +249,7 @@
           })
           .transition()
           .delay(function (d, i) { return Math.abs(data.length/2-i)*bTime*100 })                         
-          .attr("y", function(d) { return yScale(d.name); });
+          .attr("y", function(d) { return yScale(d.name) });
       }
 
       function getModifiedData()
@@ -388,6 +432,14 @@
         vizType=0;  
       }   
 
+      function getWidth(str)
+      {
+        var test = document.getElementById("Test");
+        test.innerHTML=str;
+
+        return (test.clientWidth + 1);
+      }
+
     </script>   
 
     <script type="text/javascript" language="javascript" src="data/countries_1995_2012.js"></script>     
@@ -395,6 +447,8 @@
   </head>
 
   <body>
+
+    <div id="Test"></div>  
 
     <div align="left">  
 
