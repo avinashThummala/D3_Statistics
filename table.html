@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+
+  <meta charset="utf-8">
+
+  <head>
+
+    <style type="text/css">
+
+      table {
+        border-collapse: collapse;
+      }
+
+      caption, th, td {
+        padding: .2em .4em;
+        border: 1px solid;
+      }
+
+      caption {
+        font-weight: bold;
+        font-size: 1.1em;
+        margin-left: -1px; /* Fix FF 1px issue */
+      }     
+
+    </style>
+
+    <script src="js/d3.v3.min.js"></script>
+
+    <script>
+
+      var jName="name", jContinent="continent", jGdp="gdp", jLE="life_expectancy", jPop="population", jYear="year",
+          sOrder=null, orderBy=null, 
+          minYear=2016, maxYear=1800;
+
+      var completeData, originalData, visualizedData, 
+          vizType, 
+          selectedColumns = [jName, jContinent, jGdp, jLE, jPop, jYear],
+          columnFormatters = [null, null, d3.format("s"), d3.format(".1f"), d3.format(","), null],          
+          columnAlignment = ["center", "center", "right", "right", "right", "center"],
+          rowColors = ["White", "LightGrey"];
+
+          sortHeaderOrder = { 
+            "name":[jName], //Name will break the ties
+            "continent": [jContinent, jName],
+            "gdp": [jGdp, jContinent, jName],
+            "life_expectancy": [jLE, jContinent, jName],
+            "population": [jPop, jContinent, jName],
+            "year": [jYear, jContinent, jName]
+          };
+
+      function selectYear()
+      {
+        var selectedYear = document.getElementById("tSlider").value;
+        originalData = completeData[selectedYear];
+
+        deleteVisualization(true);
+      }  
+
+      function filterRows()
+      {
+        deleteVisualization(true);
+      }
+
+      function aggregateRows()
+      {
+        if(!document.getElementById('cRadio').checked)
+          vizType=1;
+        else
+          vizType=0;
+
+        deleteVisualization(false);        
+      }
+
+      function deleteVisualization(useNewData)
+      {        
+        if(useNewData)
+          dElementsAndVizNewData();
+        else
+          dElementsAndVizData();                     
+      } 
+
+      function visualizeNewData()
+      {
+        visualizedData=getModifiedData();        
+        visualizeData()
+      }      
+
+      function visualizeData()
+      {
+        if(vizType==0)
+          startVisualization(visualizedData);
+        else
+          startAgVisualization(visualizedData);          
+      }
+
+      function dElementsAndVizNewData()
+      {
+        deleteElements();
+        visualizeNewData();
+      }
+
+      function dElementsAndVizData()
+      {
+        deleteElements();
+        visualizeData();
+      }
+
+      function startAgVisualization(data)
+      {
+        startVisualization(getNestedData(data));            
+      } 
+      
+      function startVisualization(data)
+      {
+        addChart(sort(data));     
+      }      
+
+      function addChart(data)
+      {
+        addCells(initTable(), data);
+      }
+
+      function addCells(tbody, data)
+      {
+
+        var rows = tbody.selectAll("tr.row")
+          .data(data)
+          .enter()
+          .append("tr")
+          .attr("class", "row")
+          .attr("bgcolor", function(d,i) { return rowColors[i%2] } );        
+
+        rows.selectAll("td")
+          .data(function(row) {
+            
+            var modifiedRow = []
+
+            for (index in selectedColumns)
+            {
+              var key = selectedColumns[index], formatter = columnFormatters[index]
+
+              if(formatter)
+                modifiedRow.push(formatter(row[key]))
+              else
+                modifiedRow.push(row[key])
+            }
+
+            return modifiedRow;
+          })
+          .enter()
+          .append("td")
+          .attr("align", function(d,i) { return columnAlignment[i]; } )
+          .text(function(d) { return d; })        
+      }      
+
+      function initTable()
+      {
+
+        var table = d3.select("#svgArea")
+                      .append("table"),
+
+            thead = table.append("thead")
+                      .attr("class", "thead"),
+
+            tbody = table.append("tbody");
+
+        table.append("caption")
+          .html("World Countries Ranking");          
+
+        thead.append("tr").selectAll("th")
+          .data(selectedColumns)
+          .enter()
+          .append("th")
+          .text(function(d) { return d; })
+          .on("click", function(header, i) {
+
+            var order = this.classList.contains('asc') ? 'desc' : 'asc';
+
+            this.classList.remove('asc');
+            this.classList.remove('desc');            
+            this.classList.add(order);
+
+            sOrder=order;
+            orderBy=header;
+
+            tbody.selectAll("tr").sort(function(a, b) {
+
+              return getDecision(order, header, a, b);              
+            })
+            .attr("bgcolor", function(d,i) { return rowColors[i%2] } );
+
+          });
+
+          return tbody;
+      }      
+
+      function getModifiedData()
+      {
+        var modifiedData=[], noneSelected=true, selectedContinents=[];
+
+        d3.selectAll("input").each(function(d) {
+
+          if(d3.select(this).attr("type") == "checkbox" && d3.select(this).node().checked) { 
+
+            noneSelected=false;
+            selectedContinents.push(d3.select(this).attr("name"));
+          }           
+
+        })  
+
+        if(noneSelected)
+          modifiedData = originalData;
+        else
+        {
+          for(index in originalData)
+          {
+            if( contains(selectedContinents, originalData[index][jContinent]) )
+              modifiedData.push(originalData[index]);
+          }
+        }
+
+        return modifiedData;
+
+      }      
+
+      function getNestedData(data)
+      {
+        var nested_data=[];
+
+        var nested_rows = d3.nest() 
+          .key(function(d) { return d.continent; }) 
+          .rollup(function(leaves) { 
+
+            return { 
+              "name": leaves[0].continent,
+              "continent": leaves[0].continent,
+              "gdp": d3.sum(leaves, function(d) {return d.gdp; }), 
+              "life_expectancy": d3.mean(leaves, function(d) {return d.life_expectancy; }), 
+              "population": d3.sum(leaves, function(d) {return d.population; }),
+              "year": leaves[0].year
+            }
+
+          })          
+          .entries(data)               
+
+        for(index in nested_rows)
+          nested_data.push(nested_rows[index].values) 
+
+        return nested_data;        
+      }       
+
+      function deleteElements()
+      {
+        var myNode = document.getElementById("svgArea");
+        myNode.innerHTML = '';        
+      }         
+
+      function sort(data)  
+      {
+        if(orderBy)
+        {
+          data = data.sort(function(a, b) {
+
+              return getDecision(sOrder, orderBy, a, b);              
+          })
+        }
+
+        return data;
+      }               
+
+      function getDecision(order, header, a, b)      
+      {
+
+        for(index in sortHeaderOrder[header])
+        {
+          if(a[sortHeaderOrder[header][index]]==b[sortHeaderOrder[header][index]])
+            continue;
+          else
+          {
+            if(order=='asc')
+              return d3.ascending(a[sortHeaderOrder[header][index]], b[sortHeaderOrder[header][index]]);
+            else
+              return d3.descending(a[sortHeaderOrder[header][index]], b[sortHeaderOrder[header][index]]);
+          }
+        }
+
+      }              
+
+      window.onload = function initialize(){ 
+
+        var w = document.getElementsByTagName('input'); 
+
+        for(var i = 0; i < w.length; i++)
+        { 
+          if(w[i].type=='checkbox')
+            w[i].checked = false; 
+        }
+
+        document.getElementById('cRadio').checked=true;   
+
+        modifyLabels();
+
+        startVisualization(visualizedData);                
+      }
+
+      function contains(array, obj) 
+      {
+          var i = array.length;
+
+          while (i--) {
+             if (array[i] === obj) {
+                 return true;
+             }
+          }
+
+          return false;
+      }       
+
+      function calculateMinMaxYears(obj)
+      {
+        var pYear;
+
+        for(index in obj.years)
+        {
+          pYear=obj.years[index].year;
+
+          if(pYear<minYear) 
+            minYear=pYear;
+
+          if(pYear>maxYear)
+            maxYear=pYear;
+        }
+
+      }
+
+      function manipulateData(data)
+      {
+        var modData={};
+
+        for(var year=minYear;year<=maxYear;year++)
+          modData[year]=[];
+
+        for(index in data)
+        {
+          for(lIndex in data[index].years)
+          {
+            var newRow={}
+
+            newRow[jName] = data[index][jName];
+            newRow[jContinent] = data[index][jContinent];
+
+            newRow[jGdp] = data[index].years[lIndex].gdp;
+            newRow[jLE] = data[index].years[lIndex].life_expectancy;
+            newRow[jPop] = data[index].years[lIndex].population;
+            newRow[jYear] = data[index].years[lIndex].year;
+
+            modData[newRow[jYear]].push(newRow);
+          }
+
+        }
+
+        return modData;
+
+      }  
+
+      function modifyLabels()
+      {
+        document.getElementById('minLabel').innerHTML=minYear;
+        document.getElementById('maxLabel').innerHTML=maxYear;
+
+        document.getElementById('tSlider').setAttribute("min", minYear);
+        document.getElementById('tSlider').setAttribute("max", maxYear);
+      }
+
+      function jsonCallback(data)
+      {
+
+        calculateMinMaxYears(data[0])
+
+        completeData = manipulateData(data);
+
+        originalData = completeData[minYear]
+        visualizedData = originalData;
+        vizType=0;  
+      }                
+
+    </script> 
+
+    <script type="text/javascript" language="javascript" src="data/countries_1995_2012.js"></script>         
+
+  </head>
+
+  <body>
+
+    <div align="left">  
+
+      <span>Time update:
+        <label id="minLabel"></label>
+        <input id="tSlider" type="range" name="points" min="" max="" step="1" value="0" oninput="selectYear()"> 
+        <label id="maxLabel"></label>
+      </span><br>
+
+      <span>Filter by:
+        <label><input type="checkbox" name="Americas" value="Americas" onchange="filterRows()"/>Americas</label> 
+        <label><input type="checkbox" name="Africa" value="Africa" onchange="filterRows()"/>Africa</label> 
+        <label><input type="checkbox" name="Asia" value="Asia" onchange="filterRows()"/>Asia</label> 
+        <label><input type="checkbox" name="Europe" value="Europe" onchange="filterRows()"/>Europe</label> 
+        <label><input type="checkbox" name="Oceania" value="Oceania" onchange="filterRows()"/>Oceania</label> 
+      </span><br>
+
+      <span>Aggregation:
+        <label><input id="cRadio" type="radio" name="Aggregate" value="None" onclick="aggregateRows()"/>None</label>  
+        <label><input type="radio" name="Aggregate" value="Continent" onclick="aggregateRows()"/>by Continent</label>  
+      </span>
+
+    </div>
+
+    <div id="svgArea">
+    </div>
+
+  </body>
+
+</html>

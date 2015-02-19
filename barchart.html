@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+
+  <meta charset="utf-8">
+
+  <head>
+
+    <style type="text/css">
+
+      .yAxis text {
+          font-family: Arial;
+          font-size: 10pt;
+          /*font-weight: bold;*/
+      }
+
+      .yAxis path, .yAxis line {
+          fill: none;
+          stroke: none;
+      }      
+
+    </style>
+
+    <script src="js/d3.v3.min.js"></script>
+
+    <script>
+
+      var jName="name", jContinent="continent", jGdp="gdp", jLE="life_expectancy", jPop="population", jYear="year",        
+          minYear=2016, maxYear=1800, 
+          encodeBy=jPop;
+
+      var margin = {top: 20, bottom: 0, left:200, right: 0}, barHeight = 10, barSpacing = 2, 
+          bTime=0.25, 
+          startX=0-margin.top-barHeight-barSpacing;
+
+      var completeData, originalData, visualizedData, 
+          vizType;
+
+          barColors = {
+
+            "Asia": "Green",
+            "Americas": "Orange",
+            "Africa": "Blue",
+            "Europe": "Violet",
+            "Oceania": "Red"
+
+          }
+
+      function selectYear()
+      {
+        var selectedYear = document.getElementById("tSlider").value;
+
+        originalData = completeData[selectedYear];
+        visualizedData = getModifiedData();
+
+        updateVisualization();
+      }  
+
+      function encodeRows()
+      {
+        if(document.getElementById('pRadio').checked)
+          encodeBy=jPop;
+        else
+          encodeBy=jGdp;
+
+        updateVisualization();      
+      }              
+
+      function filterRows()
+      {
+        deleteVisualization(true);
+      }
+
+      function aggregateRows()
+      {
+        if(!document.getElementById('cRadio').checked)
+          vizType=1;
+        else
+          vizType=0;
+
+        deleteVisualization(false);        
+      }
+
+      function updateVisualization()
+      {
+
+        var data;
+
+        if(vizType==0)
+          data=visualizedData;
+        else
+          data=getNestedData(visualizedData);
+
+        var max = d3.max(data, function(d) { return d[encodeBy]; } ), min = 0;
+
+        xScale.domain([min, max]); 
+
+        d3.selectAll("rect")
+          .data(data)
+          .transition()
+          .delay(function (d, i) { return bTime*100; })                         
+          .attr("width", function(d, i) { return xScale(d[encodeBy]); });                
+      }
+
+      function deleteVisualization(useNewData)
+      {        
+        var height = visualizedData.length*barHeight+(visualizedData.length+1)*barSpacing, endX = height+barSpacing+margin.bottom;
+            
+        d3.selectAll("rect")
+          .transition()
+          .delay(function (d, i) { return Math.abs(visualizedData.length/2-i)*bTime*100 })                         
+          .attr("y", function(d,i) { 
+
+            if( i<(visualizedData.length/2) )
+              return startX;
+            else
+              return endX;
+          })
+          .call(endall, function() {
+
+            if(useNewData)
+              dElementsAndVizNewData();
+            else
+              dElementsAndVizData();
+          });                       
+      } 
+
+      function visualizeNewData()
+      {
+        visualizedData=getModifiedData();        
+        visualizeData()
+      }      
+
+      function visualizeData()
+      {
+        if(vizType==0)
+          startVisualization(visualizedData);
+        else
+          startAgVisualization(visualizedData);          
+      }
+
+      function dElementsAndVizNewData()
+      {
+        deleteElements();
+        visualizeNewData();
+      }
+
+      function dElementsAndVizData()
+      {
+        deleteElements();
+        visualizeData();
+      }
+
+      function startAgVisualization(data)
+      {
+        startVisualization(getNestedData(data));            
+      } 
+      
+      function startVisualization(data)
+      {
+        addChart(data);     
+      }      
+
+      function addChart(data)
+      {
+
+        var height = data.length*barHeight+(data.length+1)*barSpacing, width = getDocWidth()-margin.left-margin.right-25,    
+            max = d3.max(data, function(d) { return d[encodeBy]; } ), min = 0, endX=height+barSpacing+margin.bottom;
+
+        xScale = d3.scale.linear().range([0, width]);
+        yScale = d3.scale.ordinal().rangeRoundBands([0, height]);
+
+        xScale.domain([min, max]);
+        yScale.domain(data.map(function(d) { return d.name; }));            
+     
+        var svg = d3.select("#svgArea")
+          .append("svg")
+          .attr("width", width+margin.left+margin.right)
+          .attr("height", height+margin.top+margin.bottom);
+     
+        var g = svg.append("g")
+          .attr("transform", "translate("+margin.left+","+margin.top+")");        
+
+        var yAxis = d3.svg.axis().scale(yScale)
+          .orient("left");        
+
+        var yAxis = g.append("g")        
+          .attr("class", "yAxis")
+          .call(yAxis);                    
+ 
+        var bars = g
+          .selectAll("rect")
+          .data(data)
+          .enter()
+          .append("rect")
+          .attr("width", function(d) { return xScale(d[encodeBy]); })
+          .attr("height", barHeight)
+          .attr("fill", function(d) { return barColors[d.continent] } )
+          .attr("x", xScale(min))
+          .attr("y", function(d,i) { 
+
+            if( i<(data.length/2) )
+              return startX;
+            else
+              return endX;
+          })
+          .transition()
+          .delay(function (d, i) { return Math.abs(data.length/2-i)*bTime*100 })                         
+          .attr("y", function(d) { return yScale(d.name); });
+      }
+
+      function getModifiedData()
+      {
+        var modifiedData=[], noneSelected=true, selectedContinents=[];
+
+        d3.selectAll("input").each(function(d) {
+
+          if(d3.select(this).attr("type") == "checkbox" && d3.select(this).node().checked) { 
+
+            noneSelected=false;
+            selectedContinents.push(d3.select(this).attr("name"));
+          }           
+
+        })  
+
+        if(noneSelected)
+          modifiedData = originalData;
+        else
+        {
+          for(index in originalData)
+          {
+            if( contains(selectedContinents, originalData[index][jContinent]) )
+              modifiedData.push(originalData[index]);
+          }
+        }
+
+        return modifiedData;
+
+      }      
+
+      function getNestedData(data)
+      {
+        var nested_data=[];
+
+        var nested_rows = d3.nest() 
+          .key(function(d) { return d.continent; }) 
+          .rollup(function(leaves) { 
+
+            return { 
+              "name": leaves[0].continent,
+              "continent": leaves[0].continent,
+              "gdp": d3.sum(leaves, function(d) {return d.gdp; }), 
+              "life_expectancy": d3.mean(leaves, function(d) {return d.life_expectancy; }), 
+              "population": d3.sum(leaves, function(d) {return d.population; }),
+              "year": leaves[0].year
+            }
+
+          })          
+          .entries(data)               
+
+        for(index in nested_rows)
+          nested_data.push(nested_rows[index].values) 
+
+        return nested_data;        
+      }       
+
+      function deleteElements()
+      {
+        var myNode = document.getElementById("svgArea");
+        myNode.innerHTML = '';        
+      }           
+
+      function endall(transition, callback) 
+      { 
+        var n = 0; 
+        transition 
+            .each(function() { ++n; }) 
+            .each("end", function() { if (!--n) callback.apply(this, arguments); }); 
+      }                          
+
+      function getDocWidth() 
+      {
+        var D = document;
+
+        return Math.max(
+            D.body.scrollWidth, D.documentElement.scrollWidth,
+            D.body.offsetWidth, D.documentElement.offsetWidth,
+            D.body.clientWidth, D.documentElement.clientWidth
+        );
+
+      }
+
+      window.onload = function initialize(){ 
+
+        var w = document.getElementsByTagName('input'); 
+
+        for(var i = 0; i < w.length; i++)
+        { 
+          if(w[i].type=='checkbox')
+            w[i].checked = false; 
+        }
+
+        document.getElementById('cRadio').checked=true;         
+        document.getElementById('pRadio').checked=true; 
+
+        modifyLabels();
+
+        startVisualization(visualizedData);                 
+      }      
+
+      function contains(array, obj) 
+      {
+          var i = array.length;
+
+          while (i--) {
+             if (array[i] === obj) {
+                 return true;
+             }
+          }
+
+          return false;
+      }       
+
+      function calculateMinMaxYears(obj)
+      {
+        var pYear;
+
+        for(index in obj.years)
+        {
+          pYear=obj.years[index].year;
+
+          if(pYear<minYear) 
+            minYear=pYear;
+
+          if(pYear>maxYear)
+            maxYear=pYear;
+        }
+
+      }
+
+      function manipulateData(data)
+      {
+        var modData={};
+
+        for(var year=minYear;year<=maxYear;year++)
+          modData[year]=[];
+
+        for(index in data)
+        {
+          for(lIndex in data[index].years)
+          {
+            var newRow={}
+
+            newRow[jName] = data[index][jName];
+            newRow[jContinent] = data[index][jContinent];
+
+            newRow[jGdp] = data[index].years[lIndex].gdp;
+            newRow[jLE] = data[index].years[lIndex].life_expectancy;
+            newRow[jPop] = data[index].years[lIndex].population;
+            newRow[jYear] = data[index].years[lIndex].year;
+
+            modData[newRow[jYear]].push(newRow);
+          }
+
+        }
+
+        return modData;
+
+      }  
+
+      function modifyLabels()
+      {
+        document.getElementById('minLabel').innerHTML=minYear;
+        document.getElementById('maxLabel').innerHTML=maxYear;
+
+        document.getElementById('tSlider').setAttribute("min", minYear);
+        document.getElementById('tSlider').setAttribute("max", maxYear);
+      }     
+               
+      function jsonCallback(data)
+      {
+
+        calculateMinMaxYears(data[0])
+
+        completeData = manipulateData(data);
+
+        originalData = completeData[minYear]
+        visualizedData = originalData;
+        vizType=0;  
+      }   
+
+    </script>   
+
+    <script type="text/javascript" language="javascript" src="data/countries_1995_2012.js"></script>     
+
+  </head>
+
+  <body>
+
+    <div align="left">  
+
+      <span>Encode bars by:
+        <label><input id="pRadio" type="radio" name="Encode" value="population" onclick="encodeRows()"/>Population</label>  
+        <label><input type="radio" name="Encode" value="gdp" onclick="encodeRows()"/>GDP</label>  
+      </span><br>    
+
+      <span>Time update:
+        <label id="minLabel"></label>
+        <input id="tSlider" type="range" name="points" min="" max="" step="1" value="0" oninput="selectYear()"> 
+        <label id="maxLabel"></label>
+      </span><br>
+
+      <span>Filter by:
+        <label><input type="checkbox" name="Americas" value="Americas" onchange="filterRows()"/>Americas</label> 
+        <label><input type="checkbox" name="Africa" value="Africa" onchange="filterRows()"/>Africa</label> 
+        <label><input type="checkbox" name="Asia" value="Asia" onchange="filterRows()"/>Asia</label> 
+        <label><input type="checkbox" name="Europe" value="Europe" onchange="filterRows()"/>Europe</label> 
+        <label><input type="checkbox" name="Oceania" value="Oceania" onchange="filterRows()"/>Oceania</label> 
+      </span><br>
+
+      <span>Aggregation:
+        <label><input id="cRadio" type="radio" name="Aggregate" value="None" onclick="aggregateRows()"/>None</label>  
+        <label><input type="radio" name="Aggregate" value="Continent" onclick="aggregateRows()"/>by Continent</label>  
+      </span>
+
+    </div>
+
+    <div id="svgArea">
+    </div>
+
+  </body>
+
+</html>
