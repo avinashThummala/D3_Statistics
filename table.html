@@ -9,6 +9,8 @@
 
       table {
         border-collapse: collapse;
+        table-layout: fixed;
+        width: 700px;
       }
 
       caption, th, td {
@@ -19,8 +21,39 @@
       caption {
         font-weight: bold;
         font-size: 1.1em;
-        margin-left: -1px; /* Fix FF 1px issue */
-      }     
+        margin-left: -1px;
+      }
+
+      .name {
+        overflow: hidden;
+        width: 200px;
+      }      
+
+      .continent {
+        overflow: hidden;
+        width: 110px;
+      }      
+
+      .gdp {
+        overflow: hidden;
+        width: 110px;
+      }      
+
+      .life_expectancy {
+        overflow: hidden;
+        width: 100px;
+      }      
+
+      .population {
+        overflow: hidden;
+        width: 130px;
+      }      
+
+      .year {
+        overflow: hidden;
+        width: 50px;
+      }
+
 
     </style>
 
@@ -35,6 +68,7 @@
       var completeData, originalData, visualizedData, 
           vizType, 
           selectedColumns = [jName, jContinent, jGdp, jLE, jPop, jYear],
+          headerText = ["Name", "Continent", "GDP", "Life Expectancy", "Population", "Year"]
           columnFormatters = [null, null, d3.format("s"), d3.format(".1f"), d3.format(","), null],          
           columnAlignment = ["center", "center", "right", "right", "right", "center"],
           rowColors = ["White", "LightGrey"];
@@ -149,6 +183,7 @@
           })
           .enter()
           .append("td")
+          .attr("class", function(d,i) { return selectedColumns[i]; } )
           .attr("align", function(d,i) { return columnAlignment[i]; } )
           .text(function(d) { return d; })        
       }      
@@ -171,7 +206,8 @@
           .data(selectedColumns)
           .enter()
           .append("th")
-          .text(function(d) { return d; })
+          .text(function(d, i) { return headerText[i]; })
+          .attr("class", function(d) {return d;} )
           .on("click", function(header, i) {
 
             var order = this.classList.contains('asc') ? 'desc' : 'asc';
